@@ -3,7 +3,7 @@ import { firestoreCollections, suggestedIndexes } from '../models/firestore';
 
 export function DataModelOverview() {
   return (
-    <div className="app-container data-model-overview">
+    <div className="page-section data-model-overview">
       <header>
         <span className="badge">Etapa 1 · Modelo de datos</span>
         <h1>Servicio TecAPP · Diseño de Firestore</h1>
