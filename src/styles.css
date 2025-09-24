@@ -223,6 +223,58 @@ a {
   gap: 2rem;
 }
 
+.page-loading {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 1rem;
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 16px 35px -28px rgba(15, 23, 42, 0.4);
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.4);
+  border-top-color: #2563eb;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.data-source-banner {
+  border-radius: 0.9rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.data-source-banner.warning {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #1d4ed8;
+}
+
+.data-source-banner.error {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #b91c1c;
+}
+
 .page-section {
   display: flex;
   flex-direction: column;
@@ -383,15 +435,14 @@ a {
 }
 
 .search-box,
-.tag-select,
-.filter-group {
+.select-control {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
 }
 
 .search-box input,
-.tag-select select {
+.select-control select {
   padding: 0.6rem 0.75rem;
   border-radius: 0.75rem;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -399,31 +450,11 @@ a {
   font-size: 0.95rem;
 }
 
-.filter-label {
+
+.select-control label {
   font-weight: 600;
   font-size: 0.85rem;
-}
-
-.filter-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.pill {
-  border-radius: 999px;
-  border: 1px solid rgba(37, 99, 235, 0.25);
-  padding: 0.35rem 0.9rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
-  cursor: pointer;
-}
-
-.pill.active {
-  background: #1d4ed8;
-  color: #f8fafc;
+  color: #1f2937;
 }
 
 .orders-panel {

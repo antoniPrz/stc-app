@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { mockIntakeData, type IntakeOrder } from '../data/mockOrders';
+import type { IntakeDashboardData, IntakeOrder } from '../data/mockOrders';
+import { useIntakeData } from '../hooks/useIntakeData';
 import type { OrderPriority, OrderStatus } from '../models/firestore';
 
 export type IntakeSectionKey = 'overview' | 'orders' | 'technicians' | 'checklists';
@@ -37,8 +38,6 @@ const intakeStatuses: Array<'Todos' | 'Ingreso' | 'Diagnóstico' | 'Presupuesto'
 
 const priorityFilters: Array<'Todas' | OrderPriority> = ['Todas', 'alta', 'media', 'baja'];
 
-const tagOptions = ['Todos', ...mockIntakeData.tagsDisponibles];
-
 const priorityWeight: Record<OrderPriority, number> = {
   alta: 3,
   media: 2,
@@ -63,14 +62,12 @@ type PriorityFilter = (typeof priorityFilters)[number];
 type FilterState = {
   status: StatusFilter;
   priority: PriorityFilter;
-  tag: string;
   search: string;
 };
 
 const initialFilters: FilterState = {
   status: 'Todos',
   priority: 'Todas',
-  tag: 'Todos',
   search: ''
 };
 
@@ -79,45 +76,84 @@ interface IntakeDashboardProps {
 }
 
 export function IntakeDashboard({ section }: IntakeDashboardProps) {
+  const { data, loading, error, usingMock } = useIntakeData();
+
+  if (loading) {
+    return (
+      <div className="page-loading">
+        <span className="spinner" aria-hidden /> Cargando datos de Firebase…
+      </div>
+    );
+  }
+
+  const banner = (error || usingMock) && (
+    <div className={`data-source-banner ${error ? 'error' : 'warning'}`}>
+      {error ? (
+        <p>
+          Ocurrió un problema al obtener datos de Firebase. Se muestran los datos de ejemplo para
+          continuar trabajando.
+        </p>
+      ) : (
+        <p>
+          Aún no hay datos en Firebase para la recepción. Se muestran los datos mock mientras
+          configuras el proyecto.
+        </p>
+      )}
+    </div>
+  );
+
+  let content: JSX.Element | null = null;
+
   switch (section) {
     case 'overview':
-      return <OverviewSection />;
+      content = <OverviewSection data={data} />;
+      break;
     case 'orders':
-      return <OrdersSection />;
+      content = <OrdersSection data={data} />;
+      break;
     case 'technicians':
-      return <TechniciansSection />;
+      content = <TechniciansSection data={data} />;
+      break;
     case 'checklists':
-      return <ChecklistsSection />;
+      content = <ChecklistsSection />;
+      break;
     default:
-      return null;
+      content = null;
   }
+
+  return (
+    <>
+      {banner}
+      {content}
+    </>
+  );
 }
 
-function OverviewSection() {
-  const sortedOrders = useMemo(() => sortOrders(mockIntakeData.orders), []);
+function OverviewSection({ data }: { data: IntakeDashboardData }) {
+  const sortedOrders = useMemo(() => sortOrders(data.orders), [data.orders]);
   const statusBreakdown = useMemo(() => {
     const draft: Record<string, number> = {};
-    for (const order of mockIntakeData.orders) {
+    for (const order of data.orders) {
       draft[order.estado] = (draft[order.estado] ?? 0) + 1;
     }
     return Object.entries(draft)
       .filter(([status]) => ['Ingreso', 'Diagnóstico', 'Presupuesto'].includes(status))
       .map(([status, count]) => ({ status: status as OrderStatus, count }));
-  }, []);
+  }, [data.orders]);
 
   const channelBreakdown = useMemo(() => {
     const draft: Record<string, number> = {};
-    for (const order of mockIntakeData.orders) {
+    for (const order of data.orders) {
       draft[order.canal] = (draft[order.canal] ?? 0) + 1;
     }
     return Object.entries(draft)
       .map(([channel, count]) => ({ channel, count }))
       .sort((a, b) => b.count - a.count);
-  }, []);
+  }, [data.orders]);
 
   const topTags = useMemo(() => {
     const draft: Record<string, number> = {};
-    for (const order of mockIntakeData.orders) {
+    for (const order of data.orders) {
       for (const tag of order.tags) {
         draft[tag] = (draft[tag] ?? 0) + 1;
       }
@@ -126,18 +162,18 @@ function OverviewSection() {
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
-  }, []);
+  }, [data.orders]);
 
   const nextActions = sortedOrders.slice(0, 3);
 
   return (
     <div className="page-section intake-overview">
       <section className="summary-grid">
-        <SummaryCard label="Ingresos hoy" value={mockIntakeData.summary.totalHoy} highlight />
-        <SummaryCard label="Pendientes de diagnóstico" value={mockIntakeData.summary.pendientesDiagnostico} />
-        <SummaryCard label="En presupuesto" value={mockIntakeData.summary.enPresupuesto} />
-        <SummaryCard label="Prioridad alta" value={mockIntakeData.summary.prioridadAlta} emphasize />
-        <SummaryCard label="Riesgo SLA" value={mockIntakeData.summary.slaRiesgo} warn />
+        <SummaryCard label="Ingresos hoy" value={data.summary.totalHoy} highlight />
+        <SummaryCard label="Pendientes de diagnóstico" value={data.summary.pendientesDiagnostico} />
+        <SummaryCard label="En presupuesto" value={data.summary.enPresupuesto} />
+        <SummaryCard label="Prioridad alta" value={data.summary.prioridadAlta} emphasize />
+        <SummaryCard label="Riesgo SLA" value={data.summary.slaRiesgo} warn />
       </section>
 
       <section className="overview-grid">
@@ -215,20 +251,16 @@ function OverviewSection() {
   );
 }
 
-function OrdersSection() {
+function OrdersSection({ data }: { data: IntakeDashboardData }) {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
 
   const filteredOrders = useMemo(() => {
-    return mockIntakeData.orders.filter((order) => {
+    return data.orders.filter((order) => {
       if (filters.status !== 'Todos' && order.estado !== filters.status) {
         return false;
       }
 
       if (filters.priority !== 'Todas' && order.prioridad !== filters.priority) {
-        return false;
-      }
-
-      if (filters.tag !== 'Todos' && !order.tags.includes(filters.tag)) {
         return false;
       }
 
@@ -245,7 +277,7 @@ function OrdersSection() {
 
       return true;
     });
-  }, [filters]);
+  }, [data.orders, filters]);
 
   const orderedItems = useMemo(() => sortOrders(filteredOrders), [filteredOrders]);
 
@@ -257,7 +289,7 @@ function OrdersSection() {
           <input
             id="search"
             type="search"
-            placeholder="Orden, cliente, equipo o tag"
+            placeholder="Orden, cliente o equipo"
             value={filters.search}
             onChange={(event) =>
               setFilters((prev) => ({
@@ -267,33 +299,40 @@ function OrdersSection() {
             }
           />
         </div>
-        <FilterGroup
-          label="Estado"
-          options={intakeStatuses}
-          active={filters.status}
-          onChange={(status) => setFilters((prev) => ({ ...prev, status }))}
-        />
-        <FilterGroup
-          label="Prioridad"
-          options={priorityFilters}
-          active={filters.priority}
-          onChange={(priority) => setFilters((prev) => ({ ...prev, priority }))}
-        />
-        <div className="tag-select">
-          <label htmlFor="tag-filter">Tag</label>
+        <div className="select-control">
+          <label htmlFor="status-filter">Estado</label>
           <select
-            id="tag-filter"
-            value={filters.tag}
+            id="status-filter"
+            value={filters.status}
             onChange={(event) =>
               setFilters((prev) => ({
                 ...prev,
-                tag: event.target.value
+                status: event.target.value as StatusFilter
               }))
             }
           >
-            {tagOptions.map((tag) => (
-              <option key={tag} value={tag}>
-                {tag}
+            {intakeStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="select-control">
+          <label htmlFor="priority-filter">Prioridad</label>
+          <select
+            id="priority-filter"
+            value={filters.priority}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                priority: event.target.value as PriorityFilter
+              }))
+            }
+          >
+            {priorityFilters.map((priority) => (
+              <option key={priority} value={priority}>
+                {priority}
               </option>
             ))}
           </select>
@@ -390,9 +429,9 @@ function OrdersSection() {
   );
 }
 
-function TechniciansSection() {
+function TechniciansSection({ data }: { data: IntakeDashboardData }) {
   const totals = useMemo(() => {
-    return mockIntakeData.technicians.reduce(
+    return data.technicians.reduce(
       (acc, technician) => {
         acc.asignadas += technician.ordenesAsignadas;
         acc.pendientes += technician.ordenesPendientesDiagnostico;
@@ -400,7 +439,7 @@ function TechniciansSection() {
       },
       { asignadas: 0, pendientes: 0 }
     );
-  }, []);
+  }, [data.technicians]);
 
   return (
     <div className="page-section intake-technicians">
@@ -415,7 +454,7 @@ function TechniciansSection() {
         </div>
         <div className="metric-badge ghost">
           <span>Técnicos activos</span>
-          <strong>{mockIntakeData.technicians.length}</strong>
+          <strong>{data.technicians.length}</strong>
         </div>
       </section>
 
@@ -425,14 +464,20 @@ function TechniciansSection() {
           <span className="hint">Carga y especialidades</span>
         </header>
         <ul className="technician-list">
-          {mockIntakeData.technicians.map((technician) => (
+          {data.technicians.map((technician) => (
             <li key={technician.uid}>
               <div className="technician-info">
                 <div className="technician-info__head">
                   <strong>{technician.nombre}</strong>
-                  <span className="skill-pill">{technician.especialidades[0]}</span>
+                  {technician.especialidades[0] && (
+                    <span className="skill-pill">{technician.especialidades[0]}</span>
+                  )}
                 </div>
-                <span className="muted">{technician.especialidades.join(' • ')}</span>
+                <span className="muted">
+                  {technician.especialidades.length
+                    ? technician.especialidades.join(' • ')
+                    : 'Sin especialidades registradas'}
+                </span>
               </div>
               <div className="technician-metrics">
                 <span className="metric">
@@ -510,33 +555,6 @@ function ChecklistsSection() {
           <li>Garantía estándar: 90 días salvo aviso; registrar fecha exacta en el campo garantía.</li>
         </ul>
       </section>
-    </div>
-  );
-}
-
-type FilterGroupProps<T extends string> = {
-  label: string;
-  options: T[];
-  active: T;
-  onChange: (value: T) => void;
-};
-
-function FilterGroup<T extends string>({ label, options, active, onChange }: FilterGroupProps<T>) {
-  return (
-    <div className="filter-group">
-      <span className="filter-label">{label}</span>
-      <div className="filter-pills">
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={`pill ${option === active ? 'active' : ''}`}
-            onClick={() => onChange(option)}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
